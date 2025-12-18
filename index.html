@@ -115,26 +115,48 @@
             outputDiv.style.color = "#666";
 
             try {
-                // Envoi à votre NOUVEAU workflow n8n
+                // Envoi à votre workflow n8n
                 const response = await fetch('https://x-ai.app.n8n.cloud/webhook/question', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ 
-                        "chatInput": userText // La clé attendue par n8n
+                        "chatInput": userText 
                     })
                 });
 
                 if (response.ok) {
-                    const data = await response.json();
+                    // --- CORRECTION : Lecture robuste (Texte OU JSON) ---
+                    const rawText = await response.text();
+                    console.log("Réponse brute du serveur :", rawText); // Pour le débogage (F12)
+
+                    let reponseIA;
                     
-                    // On récupère la réponse (selon ce que le nœud final renvoie)
-                    // L'IA de n8n configure souvent "output" ou "text"
-                    const reponseIA = data.output || data.text || data.message || JSON.stringify(data);
+                    try {
+                        // On essaie de convertir en JSON
+                        const data = JSON.parse(rawText);
+                        // On cherche la réponse dans les clés habituelles
+                        reponseIA = data.output || data.text || data.message || data.answer || JSON.stringify(data);
+                        
+                        // Si c'est un objet (cas rare), on le transforme en texte
+                        if (typeof reponseIA === 'object') {
+                            reponseIA = JSON.stringify(reponseIA, null, 2);
+                        }
+
+                    } catch (e) {
+                        // Si ça échoue, c'est que c'est du texte brut, on l'affiche tel quel
+                        reponseIA = rawText;
+                    }
+
+                    // Sécurité anti-vide
+                    if (!reponseIA || reponseIA.trim() === "") {
+                        reponseIA = "⚠️ Réponse reçue mais vide. Vérifiez que le nœud final n8n envoie bien quelque chose.";
+                    }
                     
                     outputDiv.style.color = "#333";
                     outputDiv.innerText = reponseIA;
+
                 } else {
                     outputDiv.innerText = "❌ Erreur serveur : " + response.status;
                 }
